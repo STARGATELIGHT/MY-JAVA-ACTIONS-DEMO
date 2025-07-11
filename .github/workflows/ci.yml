@@ -7,28 +7,55 @@ on:
     branches: [ main ]
 
 jobs:
+  # ── 1. Build & test with Maven ───────────────────────────
   build-test-package:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        cache: 'maven'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
 
-    - name: Build & test
-      run: mvn --batch-mode verify
+      - name: Build & test
+        run: mvn --batch-mode verify
 
-    - name: Package fat JAR
-      run: mvn --batch-mode package
+      - name: Package fat JAR
+        run: mvn --batch-mode package
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-jar
-        path: target/my-java-actions-demo-*-jar-with-dependencies.jar
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/my-java-actions-demo-*-jar-with-dependencies.jar
+
+  # ── 2. Build Docker image using the JAR ──────────────────
+  docker-build:
+    needs: build-test-package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # ↓ NEW: download the JAR artifact into the right path
+      - name: Download packaged JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target  # puts JAR in target/ so Dockerfile works
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false  # just build locally
+          tags: my-java-actions-demo:test
