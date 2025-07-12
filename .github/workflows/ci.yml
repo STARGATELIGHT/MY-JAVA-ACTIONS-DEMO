@@ -60,14 +60,14 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ── 3. Scan the image with Trivy ─────────────────────────────────────────────
-    docker-scan:
+  docker-scan:
     needs: docker-build
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       contents: read
     steps:
-      - name: Check out code          # <‑‑ ADDED
+      - name: Check out code
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -96,11 +96,9 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-      
-
   # ── 4. Tag & push to Docker Hub ──────────────────────────────────────────────
   docker-push:
-    needs: docker-scan      # only push if scan passes
+    needs: docker-scan      # only push if scan passes (or warns only)
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -126,9 +124,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            edwin123456789000/test-action:latest
+          tags: edwin123456789000/test-action:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
 
 
