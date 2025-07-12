@@ -60,17 +60,19 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ── 3. Scan the image with Trivy ─────────────────────────────────────────────
-  docker-scan:
+    docker-scan:
     needs: docker-build
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       contents: read
     steps:
+      - name: Check out code          # <‑‑ ADDED
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # The image already exists locally (cached), but rebuild just in case cache missed
       - name: Ensure image exists (cached build)
         uses: docker/build-push-action@v5
         with:
@@ -87,12 +89,14 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
-          exit-code: 0                       # only warn; never fail
+          exit-code: 0          # warn only
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+
+      
 
   # ── 4. Tag & push to Docker Hub ──────────────────────────────────────────────
   docker-push:
