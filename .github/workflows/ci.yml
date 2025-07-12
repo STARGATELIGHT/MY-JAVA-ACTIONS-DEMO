@@ -86,7 +86,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: edwin123456789000/test-action:latest
+          tags: edwin123456789000/my-java-actions-demo:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
