@@ -1,4 +1,3 @@
-
 name: Java CI
 
 on:
@@ -8,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  # ── 1. Build & test with Maven ───────────────────────────
+  # ── 1. Build & test with Maven ───────────────────────────────────────────────
   build-test-package:
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +33,7 @@ jobs:
           name: app-jar
           path: target/my-java-actions-demo-*-jar-with-dependencies.jar
 
-  # ── 2. Build Docker image using the JAR ──────────────────
+  # ── 2. Build Docker image using the JAR ──────────────────────────────────────
   docker-build:
     needs: build-test-package
     runs-on: ubuntu-latest
@@ -46,21 +45,58 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-jar
-          path: target  # puts JAR in target/ so Dockerfile works
+          path: target            # puts JAR in target/ so Dockerfile works
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Docker image (local only)
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: false            # just build locally
-          tags: my-java-actions-demo:test
+          push: false
+          tags: my-java-actions-demo:scan        # re‑used in the scan stage
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # ── 3. Tag & push to Docker Hub ──────────────────────────
-  docker-push:
+  # ── 3. Scan the image with Trivy ─────────────────────────────────────────────
+  docker-scan:
     needs: docker-build
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # The image already exists locally (cached), but rebuild just in case cache missed
+      - name: Ensure image exists (cached build)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: my-java-actions-demo:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: my-java-actions-demo:scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: 1                       # fail job if HIGH/CRITICAL found
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 4. Tag & push to Docker Hub ──────────────────────────────────────────────
+  docker-push:
+    needs: docker-scan      # only push if scan passes
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -81,12 +117,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build & push image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: edwin123456789000/my-java-actions-demo:latest
+          tags: |
+            edwin123456789000/test-action:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
 
